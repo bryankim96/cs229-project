@@ -15,7 +15,7 @@ def good_results_exist(target_id, target_time, row_id, row_time, response):
     later_date = int(row_year) > int(target_year) or (int(row_year) == int(target_year) and (int(row_month) > int(target_month) or (int(row_month) == int(target_month) and int(row_day) > int(target_day))))
     return target_id == row_id and later_date and response == 1
 
-# Conditions for a report corresponding to a patient with a future positive response
+# Conditions for a report corresponding to a patient with a future negative response
 def bad_results_exist(target_id, target_time, row_id, row_time, response):
     target_day, target_month, target_year = target_time.split('-')
     row_day, row_month, row_year = row_time.split('-')
