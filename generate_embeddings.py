@@ -1,8 +1,10 @@
+from datetime import datetime
 import gensim
 from gensim.parsing.preprocessing import preprocess_string, remove_stopwords, split_alphanum, stem_text, \
     strip_multiple_whitespaces, strip_non_alphanum
 import pandas as pd
 
+EPOCHS = 10
 
 def apply_preprocessing(s):
     filters = [strip_non_alphanum, strip_multiple_whitespaces, split_alphanum, stem_text, remove_stopwords]
@@ -32,7 +34,7 @@ def generate_embeddings(paths, text_col_names, embedding_type='fasttext'):
 
     # Train (FastText) embeddings
     embedding_model.build_vocab(sentences=corpus)
-    embedding_model.train(sentences=corpus, total_examples=len(corpus), epochs=10)  # train
+    embedding_model.train(sentences=corpus, total_examples=len(corpus), epochs=EPOCHS)  # train
 
     return embedding_model
 
@@ -44,11 +46,8 @@ if __name__ == "__main__":
 
     model = generate_embeddings(file_paths, file_text_col_names)
 
+    dt_string = datetime.now().strftime("%d%m%Y_%H%M%S")
+
     # Save resulting model to file for later use
-    model.save('embedding_model.mdl')
-    model.wv.save_word2vec_format('embedding_vecs.w2vec')
-
-    # Test some words
-    model = model.load('embedding_model.mdl')
-
-    print(model['yp'])
+    model.save('embedding_model_{}.mdl'.format(dt_string))
+    model.wv.save_word2vec_format('embedding_vecs_{}.w2vec'.format(dt_string))
