@@ -1,3 +1,4 @@
+from datetime import datetime
 import torch
 import torch.nn as nn
 import torch.nn.functional as functional
@@ -14,6 +15,7 @@ LEARNING_RATE = 0.001
 NUM_EPOCHS = 100
 
 PRINT_EVERY = 100
+SAVE_EPOCHS = 2
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -36,7 +38,9 @@ class LSTMModel(nn.Module):
 
 
 if __name__ == "__main__":
-    path_to_file = '../haruka_pathology_reports_111618.csv'
+    run_name = ""
+    embedding_file_path = ''
+    data_file_path = '../haruka_pathology_reports_111618.csv'
 
     # Prepare data
     text_field = data.Field(
@@ -49,7 +53,7 @@ if __name__ == "__main__":
         is_target=True
     )
 
-    trainds, valds = data.TabularDataset(path='../haruka_pathology_reports_111618.csv',
+    trainds, valds = data.TabularDataset(path=data_file_path,
                                          format='csv',
                                          csv_reader_params={'delimiter': '|'},
                                          fields={'text': text_field,
@@ -57,7 +61,7 @@ if __name__ == "__main__":
                                          skip_header=True).split(split_ratio=0.9)
 
     # Load/prepare pre-trained embedding vectors (FastText)
-    vectors = vocab.Vectors(name=path_to_file)
+    vectors = vocab.Vectors(name=embedding_file_path)
     text_field.build_vocab(trainds, valds, vectors=vectors)
     label_field.build_vocab(trainds)
 
@@ -131,3 +135,21 @@ if __name__ == "__main__":
                                                                                               val_total_loss / num_val_batches,
                                                                                               val_total_correct / num_val_examples,
                                                                                             ))
+
+        # Save checkpoint
+        if epoch + 1 % SAVE_EPOCHS == 0:
+            PATH = './{}_epoch{}.tar'.format(run_name, epoch + 1)
+            print('Saving checkpoint to path: {}'.format(PATH))
+
+            torch.save({
+            'epoch': epoch + 1,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'last_training_loss': train_loss.item(),
+            'last_training_accuracy': train_total_correct / num_train_examples,
+            'last_val_loss': val_total_loss / num_val_batches,
+            'last_val_accuracy': val_total_correct / num_val_examples,
+            'embedding_path': embedding_file_path 
+            }, PATH)
+        
+        
