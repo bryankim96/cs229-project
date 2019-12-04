@@ -24,7 +24,7 @@ class LSTMModel(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.word_embeddings = nn.Embedding.from_pretrained(emb_weights)
-        self.LSTM = nn.LSTM(embedding_weights.shape[1], hidden_dim)
+        self.LSTM = nn.LSTM(emb_weights.shape[1], hidden_dim)
         self.fc = nn.Linear(hidden_dim, NUM_CLASSES)
 
     def forward(self, sentence):
@@ -82,7 +82,6 @@ if __name__ == "__main__":
     num_val_examples = num_val_batches * BATCH_SIZE
 
     for epoch in range(NUM_EPOCHS):
-        train_total_loss = 0.0
         train_total_correct = 0
         running_loss = 0.0
         print("Starting Epoch {}/{}...".format(epoch + 1, NUM_EPOCHS))
@@ -96,13 +95,12 @@ if __name__ == "__main__":
 
             predicted_probs = model(report_batch)
 
-            loss = loss_function(predicted_probs, label_batch)
-            loss.backward()
+            train_loss = loss_function(predicted_probs, label_batch)
+            train_loss.backward()
             optimizer.step()
 
             # print loss every PRINT_EVERY batches
-            running_loss += loss.item()
-            train_total_loss += loss.item()
+            running_loss += train_loss.item()
             predicted_labels = torch.max(predicted_probs.data, 1)
             train_total_correct += (predicted_labels == label_batch).sum().item()
 
@@ -121,14 +119,14 @@ if __name__ == "__main__":
                 report_batch = batch.text
                 label_batch = batch.label
                 predicted_probs = model(report_batch)
-                loss = loss_function(predicted_probs, label_batch)
-                val_total_loss += loss.item()
+                val_loss = loss_function(predicted_probs, label_batch)
+                val_total_loss += val_loss.item()
                 predicted_labels = torch.max(predicted_probs.data, 1)
                 val_total_correct += (predicted_labels == label_batch).sum().item()
 
         # Print end-of-epoch statistics
-        print("Finished Epoch {}/{}, Training Loss: {:.3f}, Training Accuracy: {:.3f}, Validation Loss: {:.3f}, Validation Accuracy: {:.3f}".format(epoch + 1, NUM_EPOCHS,
-                                                                                              train_total_loss / num_train_batches,
+        print("Finished Epoch {}/{}, Train Loss: {:.3f}, Train Accuracy: {:.3f}, Validation Loss: {:.3f}, Validation Accuracy: {:.3f}".format(epoch + 1, NUM_EPOCHS,
+                                                                                              train_loss.item(),
                                                                                               train_total_correct / num_train_examples,
                                                                                               val_total_loss / num_val_batches,
                                                                                               val_total_correct / num_val_examples,
