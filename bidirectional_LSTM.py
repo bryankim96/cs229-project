@@ -9,12 +9,12 @@ from generate_embeddings import apply_preprocessing
 from sklearn.metrics import precision_score, recall_score
 
 NUM_CLASSES = 2
-BATCH_SIZE = 600 # used to be 32
+BATCH_SIZE = 32
 
 HIDDEN_DIM = 128
 
-LEARNING_RATE = 0.001 # formerly 0.001
-NUM_EPOCHS = 50
+LEARNING_RATE = 0.001
+NUM_EPOCHS = 100
 
 PRINT_EVERY = 1
 SAVE_EPOCHS = 5
@@ -30,7 +30,7 @@ class LSTMModel(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.word_embeddings = nn.Embedding.from_pretrained(emb_weights)
-        self.LSTM = nn.LSTM(emb_weights.shape[1], hidden_dim, nonlinearity='relu')
+        self.LSTM = nn.LSTM(emb_weights.shape[1], hidden_dim)
         self.fc = nn.Linear(hidden_dim, NUM_CLASSES)
 
     def forward(self, sentence_batch):
@@ -43,8 +43,8 @@ class LSTMModel(nn.Module):
 
 if __name__ == "__main__":
     run_name = "fulldataset"
-    embedding_file_path = './embedding_vecs_wordseg300_12122019_124551.w2vec' # "./embedding_vecs_wordseg_08122019_103814.w2vec"
-    data_file_path = "../new_labeled_reports_full_preprocessed.csv"# "../time_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
+    embedding_file_path = "./embedding_vecs_wordseg_08122019_103814.w2vec"
+    data_file_path = "../time_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
 
     print("Starting Run [{}]\n\n".format(run_name))
     print("Using data file at: {}\n".format(data_file_path))
@@ -66,7 +66,7 @@ if __name__ == "__main__":
                                          format='csv',
                                          csv_reader_params={'delimiter': '|'},
                                          fields=[('', None),
-                                                 # ('Unnamed: 0', None),
+                                                 ('Unnamed: 0', None),
                                                  ('anon_id', None),
                                                  ('text', text_field),
                                                  ('label', label_field)],
@@ -134,11 +134,11 @@ if __name__ == "__main__":
             _, predicted_labels = torch.max(predicted_probs.data, 1)
             train_total_correct += (predicted_labels == label_batch).sum().item()
 
-            # if i % PRINT_EVERY == PRINT_EVERY - 1:
-                # print('Batch {}/{} ----- Loss per batch (running): {}'.format(epoch + 1, i + 1,
-                #                                                                       num_train_batches,
-                #                                                                       running_loss / PRINT_EVERY))
-                # running_loss = 0.0
+            if i % PRINT_EVERY == PRINT_EVERY - 1:
+                print('Batch {}/{} ----- Loss per batch (running): {}'.format(epoch + 1, i + 1,
+                                                                                       num_train_batches,
+                                                                                       running_loss / PRINT_EVERY))
+                running_loss = 0.0
 
         # Compute validation stats
         print("Computing validation statistics...")

@@ -38,13 +38,16 @@ def find_in_reports(path, search_strs, find='all', text_col_name='REPORT', max_f
    
     print("Num matching reports found: {}/{}".format(i, len(df)))
 
-def get_class_counts(path, label_values=None, label_col_name='LABEL'):
+def get_class_counts(path, label_values=None, label_col_name='label'):
+    # change sep to '|' or ',' depending on file
     df = pd.read_csv(path, sep='|')
+    print(df[label_col_name].unique())
 
     if label_values:
         counts = {label: 0 for label in label_values}
     else:
-        counts = {-1: 0, 1:0}
+        label_values = df[label_col_name].unique()
+        counts = {label: 0 for label in label_values}
 
     for label in df[label_col_name]:
         if label in counts:
@@ -59,4 +62,4 @@ if __name__ == "__main__":
     #find_in_reports('../haruka_pathology_reports_111618.csv', [' yp'])
     #find_in_reports('../haruka_radiology_reports_111618.csv', ['T0', 'N0'], text_col_name='NOTE')
 
-    get_class_counts('../labeled_radiology_reports.csv')
+    get_class_counts('../new_labeled_reports_full_preprocessed.csv', label_col_name = 'label')

@@ -9,17 +9,17 @@ from generate_embeddings import apply_preprocessing
 from sklearn.metrics import precision_score, recall_score
 
 NUM_CLASSES = 2
-BATCH_SIZE = 600 # used to be 32
+BATCH_SIZE = 64 # used to be 32
 
-HIDDEN_DIM = 128
+HIDDEN_DIM = 512
 
 LEARNING_RATE = 0.001 # formerly 0.001
-NUM_EPOCHS = 50
+NUM_EPOCHS = 10
 
 PRINT_EVERY = 1
 SAVE_EPOCHS = 5
 
-SPLIT_RATIO = 0.9
+SPLIT_RATIO = 0.5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -30,19 +30,27 @@ class LSTMModel(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.word_embeddings = nn.Embedding.from_pretrained(emb_weights)
-        self.LSTM = nn.LSTM(emb_weights.shape[1], hidden_dim, nonlinearity='relu')
-        self.fc = nn.Linear(hidden_dim, NUM_CLASSES)
+        self.rnn = nn.LSTM(emb_weights.shape[1], hidden_dim, num_layers=1,bidirectional=True)
+        self.fc = nn.Linear(hidden_dim * 2, NUM_CLASSES)
 
     def forward(self, sentence_batch):
         embeds = self.word_embeddings(sentence_batch)
-        lstm_out, _ = self.LSTM(embeds)
+        lstm_out, _ = self.rnn(embeds)
         outputs = self.fc(lstm_out[-1, :, :])
-        output_probs = functional.log_softmax(outputs, dim=1)
-        return output_probs
+        print(self.fc.weight.data)
+        if self.fc.weight.data is not None:
+            print(torch.sum(self.fc.weight.data))
+        print(self.rnn.weight_ih_l0.data)
+        if self.rnn.weight_ih_l0.data is not None: 
+            print(torch.sum(self.rnn.weight_ih_l0.data))
+        print(self.rnn.weight_hh_l0.data)
+        if self.rnn.weight_hh_l0.data is not None:
+            print(torch.sum(self.rnn.weight_hh_l0.data))
+        return outputs
 
 
 if __name__ == "__main__":
-    run_name = "fulldataset"
+    run_name = "testrnn"
     embedding_file_path = './embedding_vecs_wordseg300_12122019_124551.w2vec' # "./embedding_vecs_wordseg_08122019_103814.w2vec"
     data_file_path = "../new_labeled_reports_full_preprocessed.csv"# "../time_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
 
@@ -79,6 +87,7 @@ if __name__ == "__main__":
     text_field.build_vocab(trainds, valds, vectors=vectors)
     
     print("Vocab size: {}".format(len(text_field.vocab)))
+    # print(text_field.vocab.itos)
 
     # Prepare iterator
     print("Preparing batch iterators w/ batch size {}...\n".format(BATCH_SIZE))
@@ -96,7 +105,7 @@ if __name__ == "__main__":
         model = model.cuda()
 
     # Train model
-    loss_function = nn.NLLLoss(weight=torch.Tensor([1, 3]).cuda())
+    loss_function = nn.CrossEntropyLoss(weight=torch.Tensor([1, 3]).cuda())
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     num_train_batches = len(traindl)
@@ -118,20 +127,23 @@ if __name__ == "__main__":
         for i, batch in enumerate(traindl):
             report_batch = batch.text
             label_batch = batch.label
+            # print(report_batch[:,0:3])
 
             # Remember that Pytorch accumulates gradients.
             # We need to clear them out before each instance
-            model.zero_grad()
+            # optimizer.zero_grad()
 
-            predicted_probs = model(report_batch)
+            scores = model(report_batch)
 
-            train_loss = loss_function(predicted_probs, label_batch)
+            train_loss = loss_function(scores, label_batch)
+            print(train_loss.requires_grad)
+            optimizer.zero_grad()
             train_loss.backward()
             optimizer.step()
 
             # print loss every PRINT_EVERY batches
             running_loss += train_loss.item()
-            _, predicted_labels = torch.max(predicted_probs.data, 1)
+            _, predicted_labels = torch.max(scores.data, 1)
             train_total_correct += (predicted_labels == label_batch).sum().item()
 
             # if i % PRINT_EVERY == PRINT_EVERY - 1:
@@ -155,10 +167,10 @@ if __name__ == "__main__":
             for i, batch in enumerate(valdl):
                 report_batch = batch.text
                 label_batch = batch.label
-                predicted_probs = model(report_batch)
-                val_loss = loss_function(predicted_probs, label_batch)
+                scores = model(report_batch)
+                val_loss = loss_function(scores, label_batch)
                 val_total_loss += val_loss.item()
-                _, predicted_labels = torch.max(predicted_probs.data, 1)
+                _, predicted_labels = torch.max(scores.data, 1)
                 val_total_correct += (predicted_labels == label_batch).sum().item()
                 
                 avg_precision_0 += precision_score(label_batch.cpu(), predicted_labels.cpu(), pos_label=0)
@@ -192,7 +204,7 @@ if __name__ == "__main__":
         
         # Save checkpoint
         if (epoch + 1) % SAVE_EPOCHS == 0:
-            PATH = './new_checkpoints/{}_epoch{}.tar'.format(run_name, epoch + 1)
+            PATH = './test_checkpoints/{}_epoch{}.tar'.format(run_name, epoch + 1)
             print('Saving checkpoint to path: {}'.format(PATH))
 
             torch.save({

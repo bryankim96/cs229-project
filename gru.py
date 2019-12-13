@@ -9,12 +9,12 @@ from generate_embeddings import apply_preprocessing
 from sklearn.metrics import precision_score, recall_score
 
 NUM_CLASSES = 2
-BATCH_SIZE = 600 # used to be 32
+BATCH_SIZE = 32
 
 HIDDEN_DIM = 128
 
-LEARNING_RATE = 0.001 # formerly 0.001
-NUM_EPOCHS = 50
+LEARNING_RATE = 0.001
+NUM_EPOCHS = 100
 
 PRINT_EVERY = 1
 SAVE_EPOCHS = 5
@@ -24,26 +24,28 @@ SPLIT_RATIO = 0.9
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class LSTMModel(nn.Module):
+class GRUModel(nn.Module):
     def __init__(self, hidden_dim, emb_weights):
-        super(LSTMModel, self).__init__()
+        super(GRUModel, self).__init__()
         self.hidden_dim = hidden_dim
 
         self.word_embeddings = nn.Embedding.from_pretrained(emb_weights)
-        self.LSTM = nn.LSTM(emb_weights.shape[1], hidden_dim, nonlinearity='relu')
+        self.gru = nn.GRU(emb_weights.shape[1], hidden_dim, dropout=0.1,
+                          bidirectional=False)
+        # self.LSTM = nn.LSTM(emb_weights.shape[1], hidden_dim)
         self.fc = nn.Linear(hidden_dim, NUM_CLASSES)
 
     def forward(self, sentence_batch):
         embeds = self.word_embeddings(sentence_batch)
-        lstm_out, _ = self.LSTM(embeds)
-        outputs = self.fc(lstm_out[-1, :, :])
+        gru_out, _ = self.gru(embeds)
+        outputs = self.fc(gru_out[-1, :, :])
         output_probs = functional.log_softmax(outputs, dim=1)
         return output_probs
 
 
 if __name__ == "__main__":
-    run_name = "fulldataset"
-    embedding_file_path = './embedding_vecs_wordseg300_12122019_124551.w2vec' # "./embedding_vecs_wordseg_08122019_103814.w2vec"
+    run_name = "gru_fulldataset"
+    embedding_file_path = "./embedding_vecs_wordseg300_12122019_124551.w2vec"# "./embedding_vecs_wordseg_08122019_103814.w2vec"
     data_file_path = "../new_labeled_reports_full_preprocessed.csv"# "../time_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
 
     print("Starting Run [{}]\n\n".format(run_name))
@@ -77,8 +79,6 @@ if __name__ == "__main__":
     # Load/prepare pre-trained embedding vectors (FastText)
     vectors = vocab.Vectors(name=embedding_file_path)
     text_field.build_vocab(trainds, valds, vectors=vectors)
-    
-    print("Vocab size: {}".format(len(text_field.vocab)))
 
     # Prepare iterator
     print("Preparing batch iterators w/ batch size {}...\n".format(BATCH_SIZE))
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     # Build model
     print("Building LSTM model w/ hidden dim {}...\n".format(HIDDEN_DIM))
-    model = LSTMModel(HIDDEN_DIM, emb_weights=text_field.vocab.vectors)
+    model = GRUModel(HIDDEN_DIM, emb_weights=text_field.vocab.vectors)
     if torch.cuda.is_available():
         model = model.cuda()
 
@@ -113,7 +113,6 @@ if __name__ == "__main__":
     for epoch in range(NUM_EPOCHS):
         train_total_correct = 0
         running_loss = 0.0
-        
         print("Starting Epoch {}/{}...".format(epoch + 1, NUM_EPOCHS))
         for i, batch in enumerate(traindl):
             report_batch = batch.text
@@ -135,23 +134,23 @@ if __name__ == "__main__":
             train_total_correct += (predicted_labels == label_batch).sum().item()
 
             # if i % PRINT_EVERY == PRINT_EVERY - 1:
-                # print('Batch {}/{} ----- Loss per batch (running): {}'.format(epoch + 1, i + 1,
-                #                                                                       num_train_batches,
-                #                                                                       running_loss / PRINT_EVERY))
-                # running_loss = 0.0
+            #    print('Batch {}/{} ----- Loss per batch (running): {}'.format(epoch + 1, i + 1,
+            #                                                                           num_train_batches,
+            #                                                                           running_loss / PRINT_EVERY))
+            #    running_loss = 0.0
 
         # Compute validation stats
         print("Computing validation statistics...")
         with torch.no_grad():
             val_total_loss = 0.0
             val_total_correct = 0
-            
+
             avg_precision_0 = 0
             avg_recall_0 = 0
             avg_precision_1 = 0
             avg_recall_1 = 0
             num_batches = 0
-               
+
             for i, batch in enumerate(valdl):
                 report_batch = batch.text
                 label_batch = batch.label
@@ -160,7 +159,7 @@ if __name__ == "__main__":
                 val_total_loss += val_loss.item()
                 _, predicted_labels = torch.max(predicted_probs.data, 1)
                 val_total_correct += (predicted_labels == label_batch).sum().item()
-                
+
                 avg_precision_0 += precision_score(label_batch.cpu(), predicted_labels.cpu(), pos_label=0)
                 avg_recall_0 += recall_score(label_batch.cpu(), predicted_labels.cpu(), pos_label=0)
                 avg_precision_1 += precision_score(label_batch.cpu(), predicted_labels.cpu(), pos_label=1)
@@ -171,7 +170,6 @@ if __name__ == "__main__":
             avg_recall_0 /= num_batches
             avg_precision_1 /= num_batches
             avg_recall_1 /= num_batches
-                
 
         # Print end-of-epoch statistics
         print("Finished Epoch {}/{}, Train Loss: {:.3f}, Train Accuracy: {:.3f}, Validation Loss: {:.3f}, Validation Accuracy: {:.3f}".format(epoch + 1, NUM_EPOCHS,
@@ -189,7 +187,7 @@ if __name__ == "__main__":
                                                                                               avg_precision_1,
                                                                                               avg_recall_1
                                                                                             ))
-        
+
         # Save checkpoint
         if (epoch + 1) % SAVE_EPOCHS == 0:
             PATH = './new_checkpoints/{}_epoch{}.tar'.format(run_name, epoch + 1)

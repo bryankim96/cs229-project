@@ -9,11 +9,11 @@ from generate_embeddings import apply_preprocessing
 from sklearn.metrics import precision_score, recall_score
 
 NUM_CLASSES = 2
-BATCH_SIZE = 600 # used to be 32
+BATCH_SIZE = 600
 
 HIDDEN_DIM = 128
 
-LEARNING_RATE = 0.001 # formerly 0.001
+LEARNING_RATE = 0.001
 NUM_EPOCHS = 50
 
 PRINT_EVERY = 1
@@ -30,20 +30,20 @@ class LSTMModel(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.word_embeddings = nn.Embedding.from_pretrained(emb_weights)
-        self.LSTM = nn.LSTM(emb_weights.shape[1], hidden_dim, nonlinearity='relu')
+        self.rnn = nn.RNN(emb_weights.shape[1], hidden_dim, num_layers=1, nonlinearity='relu')
         self.fc = nn.Linear(hidden_dim, NUM_CLASSES)
 
     def forward(self, sentence_batch):
         embeds = self.word_embeddings(sentence_batch)
-        lstm_out, _ = self.LSTM(embeds)
-        outputs = self.fc(lstm_out[-1, :, :])
+        rnn_out, _ = self.rnn(embeds)
+        outputs = self.fc(rnn_out[-1, :, :])
         output_probs = functional.log_softmax(outputs, dim=1)
         return output_probs
 
 
 if __name__ == "__main__":
     run_name = "fulldataset"
-    embedding_file_path = './embedding_vecs_wordseg300_12122019_124551.w2vec' # "./embedding_vecs_wordseg_08122019_103814.w2vec"
+    embedding_file_path = "./embedding_vecs_wordseg300_12122019_124551.w2vec"# "./embedding_vecs_wordseg_08122019_103814.w2vec"
     data_file_path = "../new_labeled_reports_full_preprocessed.csv"# "../time_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
 
     print("Starting Run [{}]\n\n".format(run_name))
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     )
 
     print("Creating TabularDatasets for training ({}) and validation ({})...".format(SPLIT_RATIO, 1.0 - SPLIT_RATIO))
-
+    
     trainds, valds = data.TabularDataset(path=data_file_path,
                                          format='csv',
                                          csv_reader_params={'delimiter': '|'},
@@ -90,7 +90,7 @@ if __name__ == "__main__":
                                                 )
 
     # Build model
-    print("Building LSTM model w/ hidden dim {}...\n".format(HIDDEN_DIM))
+    print("Building RNN model w/ hidden dim {}...\n".format(HIDDEN_DIM))
     model = LSTMModel(HIDDEN_DIM, emb_weights=text_field.vocab.vectors)
     if torch.cuda.is_available():
         model = model.cuda()
@@ -134,11 +134,11 @@ if __name__ == "__main__":
             _, predicted_labels = torch.max(predicted_probs.data, 1)
             train_total_correct += (predicted_labels == label_batch).sum().item()
 
-            # if i % PRINT_EVERY == PRINT_EVERY - 1:
-                # print('Batch {}/{} ----- Loss per batch (running): {}'.format(epoch + 1, i + 1,
-                #                                                                       num_train_batches,
-                #                                                                       running_loss / PRINT_EVERY))
-                # running_loss = 0.0
+            if i % PRINT_EVERY == PRINT_EVERY - 1:
+                print('Batch {}/{} ----- Loss per batch (running): {}'.format(epoch + 1, i + 1,
+                                                                                       num_train_batches,
+                                                                                       running_loss / PRINT_EVERY))
+                running_loss = 0.0
 
         # Compute validation stats
         print("Computing validation statistics...")

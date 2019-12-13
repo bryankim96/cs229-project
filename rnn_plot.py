@@ -6,15 +6,17 @@ import torch.nn.functional as functional
 import torch.optim as optim
 from torchtext import data, vocab
 from generate_embeddings import apply_preprocessing
-from sklearn.metrics import precision_score, recall_score
+from sklearn.metrics import precision_score, recall_score, confusion_matrix
+import matplotlib.pyplot as plt
+import numpy as np
 
 NUM_CLASSES = 2
-BATCH_SIZE = 600 # used to be 32
+BATCH_SIZE = 128 # used to be 32
 
 HIDDEN_DIM = 128
 
-LEARNING_RATE = 0.001 # formerly 0.001
-NUM_EPOCHS = 50
+LEARNING_RATE = 0.01 # formerly 0.001
+NUM_EPOCHS = 100
 
 PRINT_EVERY = 1
 SAVE_EPOCHS = 5
@@ -30,7 +32,7 @@ class LSTMModel(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.word_embeddings = nn.Embedding.from_pretrained(emb_weights)
-        self.LSTM = nn.LSTM(emb_weights.shape[1], hidden_dim, nonlinearity='relu')
+        self.LSTM = nn.GRU(emb_weights.shape[1], hidden_dim)
         self.fc = nn.Linear(hidden_dim, NUM_CLASSES)
 
     def forward(self, sentence_batch):
@@ -43,8 +45,8 @@ class LSTMModel(nn.Module):
 
 if __name__ == "__main__":
     run_name = "fulldataset"
-    embedding_file_path = './embedding_vecs_wordseg300_12122019_124551.w2vec' # "./embedding_vecs_wordseg_08122019_103814.w2vec"
-    data_file_path = "../new_labeled_reports_full_preprocessed.csv"# "../time_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
+    embedding_file_path = "./embedding_vecs_wordseg_08122019_103814.w2vec"
+    data_file_path = "../time_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
 
     print("Starting Run [{}]\n\n".format(run_name))
     print("Using data file at: {}\n".format(data_file_path))
@@ -66,7 +68,7 @@ if __name__ == "__main__":
                                          format='csv',
                                          csv_reader_params={'delimiter': '|'},
                                          fields=[('', None),
-                                                 # ('Unnamed: 0', None),
+                                                 ('Unnamed: 0', None),
                                                  ('anon_id', None),
                                                  ('text', text_field),
                                                  ('label', label_field)],
@@ -109,7 +111,9 @@ if __name__ == "__main__":
     print("Num validation examples: {} ({} batches)".format(num_val_examples, num_val_batches))
 
     print("\nStarting training for {} epochs...\n".format(NUM_EPOCHS))
-
+    
+    train_losses = []
+    val_losses = []
     for epoch in range(NUM_EPOCHS):
         train_total_correct = 0
         running_loss = 0.0
@@ -151,6 +155,10 @@ if __name__ == "__main__":
             avg_precision_1 = 0
             avg_recall_1 = 0
             num_batches = 0
+            tp_total = 0
+            fp_total = 0
+            tn_total = 0
+            fn_total = 0
                
             for i, batch in enumerate(valdl):
                 report_batch = batch.text
@@ -166,11 +174,25 @@ if __name__ == "__main__":
                 avg_precision_1 += precision_score(label_batch.cpu(), predicted_labels.cpu(), pos_label=1)
                 avg_recall_1 += recall_score(label_batch.cpu(), predicted_labels.cpu(), pos_label=1)
                 num_batches += 1
+
+                x = confusion_matrix(label_batch.cpu(), predicted_labels.cpu()).ravel()
+                tn = x[0]
+                fp = x[1]
+                fn = x[2]
+                tp = x[3]
+                # tn, fp, fn, tp
+                tn_total += tn
+                fp_total += fp
+                fn_total += fn
+                tp_total += tp
              
             avg_precision_0 /= num_batches
             avg_recall_0 /= num_batches
             avg_precision_1 /= num_batches
             avg_recall_1 /= num_batches
+
+        train_losses.append(train_loss.item())
+        val_losses.append(val_total_loss / num_val_batches)
                 
 
         # Print end-of-epoch statistics
@@ -190,6 +212,13 @@ if __name__ == "__main__":
                                                                                               avg_recall_1
                                                                                             ))
         
+        print("Finished Epoch {}/{}, True positive: {}, True negative: {}, False positive: {}, False negative: {}".format(epoch + 1, NUM_EPOCHS,
+                                                                                              tp_total,
+                                                                                              tn_total,
+                                                                                              fp_total,
+                                                                                              fn_total
+                                                                                            ))
+        
         # Save checkpoint
         if (epoch + 1) % SAVE_EPOCHS == 0:
             PATH = './new_checkpoints/{}_epoch{}.tar'.format(run_name, epoch + 1)
@@ -205,5 +234,16 @@ if __name__ == "__main__":
             'last_val_accuracy': val_total_correct / num_val_examples,
             'embedding_path': embedding_file_path 
             }, PATH)
+
+
         
-        
+    # matplotlib code    
+    plt.title("Loss vs. Number of Training Epochs")
+    plt.xlabel("Training Epochs")
+    plt.ylabel("Loss")
+    plt.plot(range(1,NUM_EPOCHS+1),train_losses,label="Train Loss")
+    plt.plot(range(1,NUM_EPOCHS+1),val_losses,label="Validation Loss")
+    plt.ylim((0,1.))
+    plt.xticks(np.arange(1, NUM_EPOCHS+1, 1.0))
+    plt.legend()
+    plt.savefig("loss_plot_100_epoch.png")
