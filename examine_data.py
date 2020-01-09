@@ -1,8 +1,7 @@
-import numpy as np
-import pandas as pd
-import sklearn
 import re
-#import nltk
+
+import pandas as pd
+
 
 def find_in_reports(path, search_strs, find='all', text_col_name='REPORT', max_find=-1, window_size=10):
     df = pd.read_csv(path, sep='|')
@@ -10,7 +9,7 @@ def find_in_reports(path, search_strs, find='all', text_col_name='REPORT', max_f
     i = 0
     for index, row in df.iterrows():
         report = row[text_col_name]
-        if max_find >= 0 and i >= max_find:
+        if 0 <= max_find <= i:
             break
         output = ""
         find_results = []
@@ -27,7 +26,7 @@ def find_in_reports(path, search_strs, find='all', text_col_name='REPORT', max_f
                 output += (report[start:end] + '\t')
             i += 1
             print(index, row['ANON_ID'], output, "\n")
-        elif find == 'any' and any(i >=0 for i in find_results):
+        elif find == 'any' and any(i >= 0 for i in find_results):
             for pos in find_results:
                 if pos >= 0:
                     start = max(pos - window_size, 0)
@@ -35,8 +34,9 @@ def find_in_reports(path, search_strs, find='all', text_col_name='REPORT', max_f
                     output += (report[start:end] + '\t')
             i += 1
             print(index, row['ANON_ID'], output, "\n")
-   
+
     print("Num matching reports found: {}/{}".format(i, len(df)))
+
 
 def get_class_counts(path, label_values=None, label_col_name='label'):
     # change sep to '|' or ',' depending on file
@@ -54,12 +54,12 @@ def get_class_counts(path, label_values=None, label_col_name='label'):
             counts[label] += 1
 
     for label in counts:
-        print("Class {}: {}/{} ({}%)".format(label, counts[label], len(df), 100.0 * (counts[label]/len(df))))
+        print("Class {}: {}/{} ({}%)".format(label, counts[label], len(df), 100.0 * (counts[label] / len(df))))
 
- 
+
 if __name__ == "__main__":
-    #find_in_reports('../haruka_pathology_reports_111618.csv', [' yp', '(?<![C])T0', 'N0'])
-    #find_in_reports('../haruka_pathology_reports_111618.csv', [' yp'])
-    #find_in_reports('../haruka_radiology_reports_111618.csv', ['T0', 'N0'], text_col_name='NOTE')
+    # find_in_reports('../haruka_pathology_reports_111618.csv', [' yp', '(?<![C])T0', 'N0'])
+    # find_in_reports('../haruka_pathology_reports_111618.csv', [' yp'])
+    # find_in_reports('../haruka_radiology_reports_111618.csv', ['T0', 'N0'], text_col_name='NOTE')
 
-    get_class_counts('../new_labeled_reports_full_preprocessed.csv', label_col_name = 'label')
+    get_class_counts('../new_labeled_reports_full_preprocessed.csv', label_col_name='label')

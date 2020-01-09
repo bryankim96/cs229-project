@@ -1,11 +1,13 @@
 from datetime import datetime
-from wordsegment import load, clean, segment
+
 import gensim
-from gensim.parsing.preprocessing import preprocess_string, remove_stopwords, split_alphanum, stem_text, \
-    strip_multiple_whitespaces, strip_non_alphanum
 import pandas as pd
+from gensim.parsing.preprocessing import preprocess_string, remove_stopwords, split_alphanum, \
+    strip_multiple_whitespaces, strip_non_alphanum
+from wordsegment import load, clean, segment
 
 EPOCHS = 200
+
 
 def apply_preprocessing(s):
     filters = [strip_non_alphanum, strip_multiple_whitespaces, split_alphanum, remove_stopwords]
@@ -47,7 +49,6 @@ def generate_embeddings(paths, text_col_names, embedding_type='fasttext'):
 
 
 if __name__ == "__main__":
-
     load()
 
     run_name = "wordseg300"

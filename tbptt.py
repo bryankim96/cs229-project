@@ -1,16 +1,12 @@
-from datetime import datetime
-import csv
 import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 import torch.optim as optim
-from torchtext import data, vocab
-from generate_embeddings import apply_preprocessing
-from ignite.engine import Events, create_supervised_evaluator, _prepare_batch
 from ignite.contrib.engines import create_supervised_tbptt_trainer
+from ignite.engine import _prepare_batch
+from ignite.engine.engine import Engine, Events
 from ignite.metrics import Accuracy, Loss, Precision, Recall
-from ignite.engine.engine import Engine, State, Events
-from ignite.utils import convert_tensor
+from torchtext import data, vocab
 
 NUM_CLASSES = 2
 BATCH_SIZE = 200
@@ -47,10 +43,11 @@ class LSTMModel(nn.Module):
         return (output_probs, hidden)
         # return output_probs
 
+
 def create_supervised_tbptt_evaluator(model, metrics=None,
-                                device=None, non_blocking=False,
-                                prepare_batch=_prepare_batch,
-                                output_transform=lambda x, y, y_pred: (y_pred, y,)):
+                                      device=None, non_blocking=False,
+                                      prepare_batch=_prepare_batch,
+                                      output_transform=lambda x, y, y_pred: (y_pred, y,)):
     """
     Modified version of factory function (default in ignite) for creating an evaluator for supervised models.
     Made it compatible with tbptt trainer since model is expected to return hidden state as well.
@@ -93,6 +90,7 @@ def create_supervised_tbptt_evaluator(model, metrics=None,
 
     return engine
 
+
 def thresholded_output_transform(output):
     y_pred, y = output
     y_pred = torch.round(y_pred)
@@ -101,15 +99,15 @@ def thresholded_output_transform(output):
 
 if __name__ == "__main__":
     run_name = "firstfull"
-    embedding_file_path = "./embedding_vecs_wordseg300_12122019_124551.w2vec"# "./embedding_vecs_wordseg_08122019_103814.w2vec"
-    data_file_path = "../new_labeled_reports_full_preprocessed.csv"# "../time_labeled_reports_full_preprocessed.csv" # new_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
+    embedding_file_path = "./embedding_vecs_wordseg300_12122019_124551.w2vec"  # "./embedding_vecs_wordseg_08122019_103814.w2vec"
+    data_file_path = "../new_labeled_reports_full_preprocessed.csv"  # "../time_labeled_reports_full_preprocessed.csv" # new_labeled_reports_full_preprocessed.csv" # new_labeled_path_reports_preprocessed
 
     print("Starting Run [{}]\n\n".format(run_name))
     print("Using data file at: {}\n".format(data_file_path))
 
     # Prepare data
     text_field = data.Field(
-        #tokenize=apply_preprocessing,
+        # tokenize=apply_preprocessing,
         lower=True
     )
     label_field = data.Field(
@@ -171,15 +169,20 @@ if __name__ == "__main__":
     # create ignite trainer
     trainer = create_supervised_tbptt_trainer(model, optimizer, loss_function, tbtt_step=TBTT_STEP)
 
-    evaluator = create_supervised_tbptt_evaluator(model, metrics={'accuracy': Accuracy(), 
-                                                                  'nll': Loss(loss_function), 
-                                                                  'precision':Precision(output_transform=thresholded_output_transform), 
-                                                                  'recall':Recall(output_transform=thresholded_output_transform)})
+    evaluator = create_supervised_tbptt_evaluator(model, metrics={'accuracy': Accuracy(),
+                                                                  'nll': Loss(loss_function),
+                                                                  'precision': Precision(
+                                                                      output_transform=thresholded_output_transform),
+                                                                  'recall': Recall(
+                                                                      output_transform=thresholded_output_transform)})
+
+
     # evaluator = create_supervised_evaluator(model, metrics=['accuracy'])
 
     @trainer.on(Events.ITERATION_COMPLETED)
     def log_training_loss(trainer):
         print("Epoch[{}] Loss: {:.2f}".format(trainer.state.epoch, trainer.state.output))
+
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(trainer):
@@ -195,7 +198,8 @@ if __name__ == "__main__":
         # string_precision = "$2.3f" % metrics['precision']
         # string_recall = "$2.2f" % metrics['recall']
         print("Training Results - Epoch: {}  Avg accuracy: {:.2f} Avg loss: {:.2f}"
-            .format(trainer.state.epoch, metrics['accuracy'], metrics['nll']))
+              .format(trainer.state.epoch, metrics['accuracy'], metrics['nll']))
+
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(trainer):
@@ -205,6 +209,7 @@ if __name__ == "__main__":
         # print(type(precision_0))
         print(metrics['recall'])
         print("Validation Results - Epoch: {}  Avg accuracy: {:.2f} Avg loss: {:.2f}"
-            .format(trainer.state.epoch, metrics['accuracy'], metrics['nll']))
+              .format(trainer.state.epoch, metrics['accuracy'], metrics['nll']))
+
 
     trainer.run(traindl, max_epochs=100)

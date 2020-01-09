@@ -1,6 +1,8 @@
 import csv
 import os
+
 from wordsegment import load
+
 from generate_embeddings import apply_preprocessing
 
 if __name__ == "__main__":
@@ -22,4 +24,3 @@ if __name__ == "__main__":
                 if row[2] == "-1":
                     row[2] = "0" 
                 writer.writerow(row)
-         
